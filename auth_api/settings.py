@@ -30,11 +30,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["rajapi-cop-auth-api.onrender.com"]
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://rajapi-cop-auth-api.onrender.com",
-]
-
 AUTH_USER_MODEL = 'auth_app.CustomUser'
+
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 # Application definition
 
@@ -47,12 +46,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'auth_app'
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
