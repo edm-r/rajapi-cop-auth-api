@@ -21,7 +21,11 @@ class RegisterView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "User registered successfully!"}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Format personnalisé pour les erreurs de validation
+        return Response({
+            "code": "VALIDATION_ERROR",
+            "detail": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
 class PasswordResetView(APIView):
     permission_classes = [AllowAny]
@@ -30,7 +34,10 @@ class PasswordResetView(APIView):
         email = request.data.get('email')
         
         if not email:
-            raise ValidationError({'email' : "This field is required"})
+            return Response({
+                "code": "MISSING_EMAIL",
+                "detail": "This field is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             user = CustomUser.objects.get(email=email)
@@ -46,36 +53,48 @@ class PasswordResetView(APIView):
                 'noreply@rajapi-cop.com',
                 [user.email]
             )
-            return Response({"detail" : "Password reset email sent"}, status=status.HTTP_200_OK)
+            return Response({"detail": "Password reset email sent"}, status=status.HTTP_200_OK)
         except CustomUser.DoesNotExist:
-            return Response({"detail" : "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                "code": "USER_NOT_FOUND",
+                "detail": "User with this email does not exist."
+            }, status=status.HTTP_404_NOT_FOUND)
         
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request, uidb64, token):
         try:
-            # Decode the user ID
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = CustomUser.objects.get(pk=uid)
         except (CustomUser.DoesNotExist, ValueError, TypeError, OverflowError):
-            return Response({"detail": "Invalid token or user ID."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "code": "INVALID_TOKEN_OR_USER",
+                "detail": "Invalid token or user ID."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         token_generator = PasswordResetTokenGenerator()
         
-        # Validate the token
         if not token_generator.check_token(user, token):
-            return Response({"detail": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "code": "INVALID_OR_EXPIRED_TOKEN",
+                "detail": "Invalid or expired token."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get the new password from the request data
         new_password = request.data.get("new_password")
         confirm_password = request.data.get('confirm_password')
         if not new_password or not confirm_password:
-            return Response({"detail": "Both password and confirm_password are required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "code": "MISSING_PASSWORD",
+                "detail": "Both password and confirm_password are required."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         if new_password != confirm_password:
-            return Response({"detail": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
-        # Reset the password
+            return Response({
+                "code": "PASSWORDS_DO_NOT_MATCH",
+                "detail": "Passwords do not match."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         user.set_password(new_password)
         user.save()
         return Response({"detail": "Password has been reset successfully."}, status=status.HTTP_200_OK)
@@ -88,9 +107,12 @@ def LogoutView(APIView):
             refresh_token = request.data['refresh']
             token = RefreshToken(refresh_token)
             token.blacklist()
-            return Response({'detail' : 'Logged out successfully.'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'Logged out successfully.'}, status=status.HTTP_200_OK)
         except Exception:
-            return Response({"detail" : "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "code": "INVALID_TOKEN",
+                "detail": "Invalid token."
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -104,33 +126,36 @@ class UserProfileView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "code": "VALIDATION_ERROR",
+            "detail": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-# Custom Token Verify view
 class CustomTokenVerifyView(TokenVerifyView):
     def post(self, request, *args, **kwargs):
-        serializer = UserProfileSerializer(request.data)
         token = request.data.get('token', None)
         
         if not token:
-            return Response({"token_valid": False, "detail": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "code": "TOKEN_REQUIRED",
+                "detail": "Token is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            # Decode the token
             decoded_token = AccessToken(token)
             user_id = decoded_token['user_id']
-            user = CustomUser.objects.get(id=user_id)
             user = CustomUser.objects.get(id=user_id)
             user_profile = UserProfileSerializer(user).data
             
             return Response({
-                'token_valid' : True,
-                'user_profile' : user_profile
+                'token_valid': True,
+                'user_profile': user_profile
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({
-                'token_valid':False,
-                'detail':str(e)
+                "code": "INVALID_TOKEN",
+                "detail": str(e)
             }, status=status.HTTP_401_UNAUTHORIZED)
             
 class ChangePasswordView(APIView):
@@ -141,12 +166,18 @@ class ChangePasswordView(APIView):
         if serializer.is_valid():
             user = request.user
             if not check_password(serializer.validated_data['old_password'], user.password):
-                return Response({"error" : "Old password is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    "code": "INCORRECT_OLD_PASSWORD",
+                    "detail": "Old password is incorrect."
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             user.set_password(serializer.validated_data['new_password'])
             user.save()
-            return Response({"message" : "Password updated successfully."}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Password updated successfully."}, status=status.HTTP_200_OK)
+        return Response({
+            "code": "VALIDATION_ERROR",
+            "detail": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
 class DeactivateAccountView(APIView):
     permission_classes = [IsAuthenticated]
@@ -155,5 +186,4 @@ class DeactivateAccountView(APIView):
         user = request.user
         user.is_active = False
         user.save()
-        return Response({"message" : "Account deactivated successfully."}, status=status.HTTP_200_OK)
-    
+        return Response({"message": "Account deactivated successfully."}, status=status.HTTP_200_OK)
