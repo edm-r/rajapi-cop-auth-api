@@ -118,18 +118,22 @@ class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
+        # Ajouter la vérification de l'email si présent dans les query params
+        email = request.query_params.get('email')
+        if email:
+            try:
+                user = CustomUser.objects.get(email=email)
+                serializer = UserProfileSerializer(user)
+                return Response(serializer.data)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    "code": "USER_NOT_FOUND",
+                    "detail": "User with this email does not exist."
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Retourner le profil de l'utilisateur connecté si aucun email spécifié
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data)
-    
-    def put(self, request):
-        serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response({
-            "code": "VALIDATION_ERROR",
-            "detail": serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
 
 class CustomTokenVerifyView(TokenVerifyView):
     def post(self, request, *args, **kwargs):
