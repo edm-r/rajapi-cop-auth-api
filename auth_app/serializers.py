@@ -61,7 +61,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            role=validated_data.get('role', ''),
+            role=validated_data.setdefault('role', 'member'),
             phone_number=validated_data.get('phone_number', ''),
             newsletter_subscription=validated_data.get('newsletter_subscription', False),
         )
