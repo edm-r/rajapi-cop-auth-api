@@ -45,7 +45,7 @@ class PasswordResetView(APIView):
             uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
             token = token_generator.make_token(user)
             
-            reset_url = f"http://127.0.0.1:8000/auth/reset-password/{uidb64}/{token}"
+            reset_url = f"https://rajapi-cop-auth-api.onrender.com/auth/reset-password/{uidb64}/{token}"
             
             send_mail(
                 'Password Reset Request',
